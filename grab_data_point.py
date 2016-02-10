@@ -3,6 +3,7 @@ import requests
 import json
 import sys
 import os
+import time
 
 ##The Organization of the program
 #Check if You have any requests left
@@ -34,11 +35,48 @@ def grab_next_tracker_record(db = 'weather.db', table ='tracker'):
     conn.close()
     return record
 
+def get_key():
+    """Get the api key. Add local key path"""
+    path = r'C:\Users\Bschuster\Desktop\api_key.txt'
+    with open(path, 'rb') as f:
+        key = f.read()
+    return key
 
 def build_url_path(api_values):
     """Builds the path for the weathersource api"""
+    api_dict = {}
+    api_dict['id'] = api_values['id']
+    api_dict['postal_code_eq'] = str(api_values['zip'])
+    raw_date = time.strptime(api_values['date'], '%m/%d/%Y')
+    api_dict['iso_date'] = time.strftime("%Y-%m-%dT%H:%M:%S", raw_date)
+    api_dict['country_eq'] = 'US'
+    key = get_key()
+    api_path = 'https://api.weathersource.com'
+    api_path += '/v1/' + key + '/history_by_postal_code.json?'
+    api_path += 'period=day&postal_code_eq=' + api_dict['postal_code_eq']
+    api_path += '&country_eq=' + api_dict['country_eq']
+    api_path += '&timestamp_eq=' + api_dict['iso_date']
+    api_path += '&&fields=postal_code,country,timestamp,tempMax,tempAvg,tempMin,precip,snowfall,windSpdMax,windSpdAvg,windSpdMin,cldCvrMax,cldCvrAvg,cldCvrMin,dewPtMax,dewPtAvg,dewPtMin,feelsLikeMax,feelsLikeAvg,feelsLikeMin,relHumMax,relHumAvg,relHumMin,sfcPresMax,sfcPresAvg,sfcPresMin,spcHumMax,spcHumAvg,spcHumMin,wetBulbMax,wetBulbAvg,wetBulbMin'
+    api_dict['url'] = api_path
+    return api_dict
 
-    
+def contact_api(api_dict):
+    """Go out to the api and return the JSON Values """
+
+    url = api_dict['url']
+    r = requests.get(url)
+    json_response = r.json()[0]
+    json_response['status'] = r.status_code
+    json_response['id'] = api_dict['id']
+    return json_response
+
+def update_weatherData(api_values):
+    """Insert API Values"""
+    return 1
+
+def update_tracker(api_values):
+    """Update Tracker with 1 for complete"""
+    return 1
 
 def main():
     requestsLeft = open_requestsLeft()
@@ -53,11 +91,19 @@ def main():
 
     ##table structure: _id, zip, date, complete
     #Build the path
+    api_dict = build_url_path(next_values)
+
+    #Run the path to get a list of values
+    api_values = contact_api(api_dict)
+
+    #Update weatherData
+    #Update tracker
 
 
 
 ###For testing purposes
 def test():
+    ##Testing Open Requests
     with open('test_request_value.txt', 'wb') as f:
         f.write('100')
 
@@ -66,6 +112,7 @@ def test():
     assert open_requestsLeft('test_request_value.txt') == str(98)
     os.remove('test_request_value.txt')
 
+    ##Testing DB Reads
     c = sqlite3.connect('testdb.db')
     try:
         c.execute('create table test (id, complete)')
@@ -80,6 +127,109 @@ def test():
     c.close()
     os.remove('testdb.db')
 
+    #Testing api url build
+    test_values = {'id': 1, 'zip': 22222, 'date' : '1/1/2012'}
+    assert build_url_path(test_values)['iso_date'] == '2012-01-01T00:00:00'
+
+    #Test returning path
+    test_values_1 = {'id': 1, 'zip': 22222, 'date': '1/1/2014'}
+    test_api_dict = build_url_path(test_values_1)
+    #with open('testurl.txt', 'w') as f:
+    #    f.write(test_api_dict['url'])
+    test_api_return = contact_api(test_api_dict)
+    assert test_api_return['status'] == 200
+    assert test_api_return['cldCvrMin'] == 1
+    assert test_api_return['relHumMin'] == 47.1
+    assert test_api_return['sfcPresMin'] == 1021.9
+    assert test_api_return['id'] == 1
+
+    #Test Api Update Sequence
+        ##Testing DB Reads
+    c = sqlite3.connect('testdb.db')
+
+    create_tracker = """
+CREATE TABLE tracker
+(id INTEGER PRIMARY KEY AUTOINCREMENT
+,zip TEXT
+,date TEXT
+,complete INTEGER
+)
+    """
+
+    try:
+        c.execute(create_tracker)
+    except:
+        cont = 1
+    c.commit()
+
+    create_weatherData = """
+CREATE TABLE weatherData
+(
+ id INTEGER PRIMARY KEY
+,timestamp text
+,tempMax real
+,tempAvg real
+,tempMin real
+,precip real
+,precipConf real
+,snowfall real
+,snowfallConf real
+,windSpdMax real
+,windSpdAvg real
+,windSpdMin real
+,cldCvrMax real
+,cldCvrAvg real
+,cldCvrMin real
+,dewPtMax real
+,dewPtAvg real
+,dewPtMin real
+,feelsLikeMax real
+,feelsLikeAvg real
+,feelsLikeMin real
+,relHumMax real
+,relHumAvg real
+,relHumMin real
+,sfcPresMax real
+,sfcPresAvg real
+,sfcPresMin real
+,spcHumMax real
+,spcHumAvg real
+,spcHumMin real
+,wetBulbMax real
+,wetBulbAvg real
+,wetBulbMin real
+)
+    """
+    try:
+        c.execute(create_weatherData)
+    except:
+        cont = 1
+    c.commit()
+
+    c.execute("INSERT INTO tracker VALUES(NULL, 22222, '1/1/2014', 0)")
+    c.commit()
+    #c.execute("INSERT INTO tracker VALUES(2, 12345, '1/1/2014', 0)")
+    #c.commit()
+    c.close()
+
+    next_test_values = grab_next_tracker_record(db = 'testdb.db', table ='tracker')
+    assert next_test_values['id'] == 1
+    api_test_dict = build_url_path(next_test_values)
+    assert api_test_dict['id'] == 1
+    api_test_values = contact_api(api_test_dict)
+    assert api_test_values['id'] == 1
+
+    #Where we're writing the logic to update the db
+    assert update_weatherData(api_test_values) == 1
+    assert update_tracker(api_test_values) == 1
+
+
+
+    os.remove('testdb.db')
+
+
+    print 'KEY:'
+    print get_key()
     print 'Tests Passed'
 
 test()
