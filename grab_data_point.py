@@ -70,12 +70,61 @@ def contact_api(api_dict):
     json_response['id'] = api_dict['id']
     return json_response
 
-def update_weatherData(api_values):
+def update_weatherData(api_values, db = 'weather.db'):
     """Insert API Values"""
+    statement = """
+    INSERT INTO weatherData (
+    id
+    ,timestamp
+    ,tempMax
+    ,tempAvg
+    ,tempMin
+    ,precip
+    ,snowfall
+    ,windSpdMax
+    ,windSpdAvg
+    ,windSpdMin
+    ,cldCvrMax
+    ,cldCvrAvg
+    ,cldCvrMin
+    ,dewPtMax
+    ,dewPtAvg
+    ,dewPtMin
+    ,feelsLikeMax
+    ,feelsLikeAvg
+    ,feelsLikeMin
+    ,relHumMax
+    ,relHumAvg
+    ,relHumMin
+    ,sfcPresMax
+    ,sfcPresAvg
+    ,sfcPresMin
+    ,spcHumMax
+    ,spcHumAvg
+    ,spcHumMin
+    ,wetBulbMax
+    ,wetBulbAvg
+    ,wetBulbMin
+    )
+    VALUES
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """
+    value_list = [api_values['id'], api_values['timestamp'], api_values['tempMax'], api_values['tempAvg'], api_values['tempMin'], api_values['precip'], api_values['snowfall'], api_values['windSpdMax'], api_values['windSpdAvg'], api_values['windSpdMin'], api_values['cldCvrMax'], api_values['cldCvrAvg'], api_values['cldCvrMin'], api_values['dewPtMax'], api_values['dewPtAvg'], api_values['dewPtMin'], api_values['feelsLikeMax'], api_values['feelsLikeAvg'], api_values['feelsLikeMin'], api_values['relHumMax'], api_values['relHumAvg'], api_values['relHumMin'], api_values['sfcPresMax'], api_values['sfcPresAvg'], api_values['sfcPresMin'], api_values['spcHumMax'], api_values['spcHumAvg'], api_values['spcHumMin'], api_values['wetBulbMax'], api_values['wetBulbAvg'], api_values['wetBulbMin']]
+
+    c = sqlite3.connect(db)
+    c.execute(statement, value_list)
+    c.commit()
+    c.close()
     return 1
 
-def update_tracker(api_values):
+def update_tracker(api_values, db = 'weather.db', table ='tracker'):
     """Update Tracker with 1 for complete"""
+
+    statement = "UPDATE tracker set complete = 1 WHERE id = " + str(api_values['id'])
+    c = sqlite3.connect(db)
+    c.execute(statement)
+    c.commit()
+    c.close()
     return 1
 
 def main():
@@ -220,8 +269,27 @@ CREATE TABLE weatherData
     assert api_test_values['id'] == 1
 
     #Where we're writing the logic to update the db
-    assert update_weatherData(api_test_values) == 1
-    assert update_tracker(api_test_values) == 1
+    #Update weatherData
+    assert update_weatherData(api_test_values, db = 'testdb.db') == 1
+
+    c = sqlite3.connect('testdb.db')
+    c.row_factory = sqlite3.Row
+    test_api_return = [row for row in c.execute('SELECT * From weatherData')][0]
+    assert test_api_return['cldCvrMin'] == 1
+    assert test_api_return['relHumMin'] == 47.1
+    assert test_api_return['sfcPresMin'] == 1021.9
+    assert test_api_return['id'] == 1
+    c.close()
+
+    #Update Tracker
+    assert update_tracker(api_test_values, db = 'testdb.db') == 1
+    statement = "SELECT id from tracker where complete = 1"
+    conn = sqlite3.connect('testdb.db')
+    conn.row_factory = sqlite3.Row
+    record = [row for row in conn.execute(statement)][0]['id']
+    conn.close()
+    assert record == 1
+
 
 
 
