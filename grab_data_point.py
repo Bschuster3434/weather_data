@@ -1,3 +1,6 @@
+
+#!/usr/bin/env python
+
 import sqlite3
 import requests
 import json
