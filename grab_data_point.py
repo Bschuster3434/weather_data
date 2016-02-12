@@ -45,7 +45,7 @@ def get_key():
 def build_url_path(api_values):
     """Builds the path for the weathersource api"""
     api_dict = {}
-    api_dict['id'] = api_values['id']
+    api_dict['_id'] = api_values['_id']
     api_dict['postal_code_eq'] = str(api_values['zip'])
     raw_date = time.strptime(api_values['date'], '%m/%d/%Y')
     api_dict['iso_date'] = time.strftime("%Y-%m-%dT%H:%M:%S", raw_date)
@@ -67,7 +67,7 @@ def contact_api(api_dict):
     r = requests.get(url)
     json_response = r.json()[0]
     json_response['status'] = r.status_code
-    json_response['id'] = api_dict['id']
+    json_response['_id'] = api_dict['_id']
     return json_response
 
 def update_weatherData(api_values, db = 'weather.db'):
@@ -109,7 +109,7 @@ def update_weatherData(api_values, db = 'weather.db'):
     VALUES
     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """
-    value_list = [api_values['id'], api_values['timestamp'], api_values['tempMax'], api_values['tempAvg'], api_values['tempMin'], api_values['precip'], api_values['snowfall'], api_values['windSpdMax'], api_values['windSpdAvg'], api_values['windSpdMin'], api_values['cldCvrMax'], api_values['cldCvrAvg'], api_values['cldCvrMin'], api_values['dewPtMax'], api_values['dewPtAvg'], api_values['dewPtMin'], api_values['feelsLikeMax'], api_values['feelsLikeAvg'], api_values['feelsLikeMin'], api_values['relHumMax'], api_values['relHumAvg'], api_values['relHumMin'], api_values['sfcPresMax'], api_values['sfcPresAvg'], api_values['sfcPresMin'], api_values['spcHumMax'], api_values['spcHumAvg'], api_values['spcHumMin'], api_values['wetBulbMax'], api_values['wetBulbAvg'], api_values['wetBulbMin']]
+    value_list = [api_values['_id'], api_values['timestamp'], api_values['tempMax'], api_values['tempAvg'], api_values['tempMin'], api_values['precip'], api_values['snowfall'], api_values['windSpdMax'], api_values['windSpdAvg'], api_values['windSpdMin'], api_values['cldCvrMax'], api_values['cldCvrAvg'], api_values['cldCvrMin'], api_values['dewPtMax'], api_values['dewPtAvg'], api_values['dewPtMin'], api_values['feelsLikeMax'], api_values['feelsLikeAvg'], api_values['feelsLikeMin'], api_values['relHumMax'], api_values['relHumAvg'], api_values['relHumMin'], api_values['sfcPresMax'], api_values['sfcPresAvg'], api_values['sfcPresMin'], api_values['spcHumMax'], api_values['spcHumAvg'], api_values['spcHumMin'], api_values['wetBulbMax'], api_values['wetBulbAvg'], api_values['wetBulbMin']]
 
     c = sqlite3.connect(db)
     c.execute(statement, value_list)
@@ -120,7 +120,7 @@ def update_weatherData(api_values, db = 'weather.db'):
 def update_tracker(api_values, db = 'weather.db', table ='tracker'):
     """Update Tracker with 1 for complete"""
 
-    statement = "UPDATE tracker set complete = 1 WHERE id = " + str(api_values['id'])
+    statement = "UPDATE tracker set complete = 1 WHERE _id = " + str(api_values['_id'])
     c = sqlite3.connect(db)
     c.execute(statement)
     c.commit()
@@ -129,7 +129,7 @@ def update_tracker(api_values, db = 'weather.db', table ='tracker'):
 
 def main():
     requestsLeft = open_requestsLeft()
-    if requestLeft == 0:
+    if requestsLeft == 0:
         sys.exit() #Exit if no requests left for day
 
     #Else, increment file donw by one and continue
@@ -177,11 +177,11 @@ def test():
     os.remove('testdb.db')
 
     #Testing api url build
-    test_values = {'id': 1, 'zip': 22222, 'date' : '1/1/2012'}
+    test_values = {'_id': 1, 'zip': 22222, 'date' : '1/1/2012'}
     assert build_url_path(test_values)['iso_date'] == '2012-01-01T00:00:00'
 
     #Test returning path
-    test_values_1 = {'id': 1, 'zip': 22222, 'date': '1/1/2014'}
+    test_values_1 = {'_id': 1, 'zip': 22222, 'date': '1/1/2014'}
     test_api_dict = build_url_path(test_values_1)
     #with open('testurl.txt', 'w') as f:
     #    f.write(test_api_dict['url'])
@@ -190,7 +190,7 @@ def test():
     assert test_api_return['cldCvrMin'] == 1
     assert test_api_return['relHumMin'] == 47.1
     assert test_api_return['sfcPresMin'] == 1021.9
-    assert test_api_return['id'] == 1
+    assert test_api_return['_id'] == 1
 
     #Test Api Update Sequence
         ##Testing DB Reads
@@ -198,7 +198,7 @@ def test():
 
     create_tracker = """
 CREATE TABLE tracker
-(id INTEGER PRIMARY KEY AUTOINCREMENT
+(_id INTEGER PRIMARY KEY AUTOINCREMENT
 ,zip TEXT
 ,date TEXT
 ,complete INTEGER
@@ -262,11 +262,11 @@ CREATE TABLE weatherData
     c.close()
 
     next_test_values = grab_next_tracker_record(db = 'testdb.db', table ='tracker')
-    assert next_test_values['id'] == 1
+    assert next_test_values['_id'] == 1
     api_test_dict = build_url_path(next_test_values)
-    assert api_test_dict['id'] == 1
+    assert api_test_dict['_id'] == 1
     api_test_values = contact_api(api_test_dict)
-    assert api_test_values['id'] == 1
+    assert api_test_values['_id'] == 1
 
     #Where we're writing the logic to update the db
     #Update weatherData
@@ -278,15 +278,15 @@ CREATE TABLE weatherData
     assert test_api_return['cldCvrMin'] == 1
     assert test_api_return['relHumMin'] == 47.1
     assert test_api_return['sfcPresMin'] == 1021.9
-    assert test_api_return['id'] == 1
+    assert test_api_return['id'] == 1 ###This is the only id that does not need the '_' at the beginning
     c.close()
 
     #Update Tracker
     assert update_tracker(api_test_values, db = 'testdb.db') == 1
-    statement = "SELECT id from tracker where complete = 1"
+    statement = "SELECT _id from tracker where complete = 1"
     conn = sqlite3.connect('testdb.db')
     conn.row_factory = sqlite3.Row
-    record = [row for row in conn.execute(statement)][0]['id']
+    record = [row for row in conn.execute(statement)][0]['_id']
     conn.close()
     assert record == 1
 
@@ -300,4 +300,6 @@ CREATE TABLE weatherData
     print get_key()
     print 'Tests Passed'
 
-test()
+#test()
+if __name__ == "__main__":
+    main()
