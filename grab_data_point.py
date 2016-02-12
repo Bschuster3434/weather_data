@@ -7,6 +7,7 @@ import json
 import sys
 import os
 import time
+import smtplib
 
 ##The Organization of the program
 #Check if You have any requests left
@@ -26,6 +27,48 @@ def open_requestsLeft(requestFile = 'requestsLeft.txt'):
 def minus_one_requestsLeft(current_value, requestFile = 'requestsLeft.txt'):
     with open(requestFile, 'wb') as f:
         f.write(str(int(current_value) - 1))
+
+def check_tracker(db = 'weather.db', table ='tracker'):
+    #Run a script to grab the most recent db
+    statement = 'SELECT * FROM ' + table + " where complete = 0 LIMIT 1"
+
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    record = [row for row in conn.execute(statement)]
+    conn.close()
+    record_count = len(record)
+    return record_count
+
+def notify(message):
+    SERVER = "localhost"
+
+    gmailun = "weatherdataemail@gmail.com"
+    gmailpw = "WeatherD@t@"
+    FROM = "weatherdataemail@gmail.com"
+    TO = ["brian.daniel.schuster@gmail.com"] # must be a list
+
+    SUBJECT = "WeatherData Notification"
+
+    TEXT = message
+
+    # Prepare actual message
+
+    message = """\
+    From: %s
+    To: %s
+    Subject: %s
+
+    %s
+    """ % (FROM, ", ".join(TO), SUBJECT, TEXT)
+
+    # Send the mail
+
+    server = smtplib.SMTP('smtp.gmail.com:587')
+    server.ehlo()
+    server.starttls()
+    server.login(gmailun, gmailpw)
+    server.sendmail(FROM, TO, message)
+    server.quit()
 
 def grab_next_tracker_record(db = 'weather.db', table ='tracker'):
     #Run a script to grab the most recent db
@@ -49,6 +92,7 @@ def build_url_path(api_values):
     """Builds the path for the weathersource api"""
     api_dict = {}
     api_dict['_id'] = api_values['_id']
+    api_dict['zip'] = api_values['zip']
     api_dict['postal_code_eq'] = str(api_values['zip'])
     raw_date = time.strptime(api_values['date'], '%m/%d/%Y')
     api_dict['iso_date'] = time.strftime("%Y-%m-%dT%H:%M:%S", raw_date)
@@ -71,6 +115,7 @@ def contact_api(api_dict):
     json_response = r.json()[0]
     json_response['status'] = r.status_code
     json_response['_id'] = api_dict['_id']
+    json_response['zip'] = api_dict['zip']
     return json_response
 
 def update_weatherData(api_values, db = 'weather.db'):
@@ -108,11 +153,12 @@ def update_weatherData(api_values, db = 'weather.db'):
     ,wetBulbMax
     ,wetBulbAvg
     ,wetBulbMin
+    ,zip
     )
     VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """
-    value_list = [api_values['_id'], api_values['timestamp'], api_values['tempMax'], api_values['tempAvg'], api_values['tempMin'], api_values['precip'], api_values['snowfall'], api_values['windSpdMax'], api_values['windSpdAvg'], api_values['windSpdMin'], api_values['cldCvrMax'], api_values['cldCvrAvg'], api_values['cldCvrMin'], api_values['dewPtMax'], api_values['dewPtAvg'], api_values['dewPtMin'], api_values['feelsLikeMax'], api_values['feelsLikeAvg'], api_values['feelsLikeMin'], api_values['relHumMax'], api_values['relHumAvg'], api_values['relHumMin'], api_values['sfcPresMax'], api_values['sfcPresAvg'], api_values['sfcPresMin'], api_values['spcHumMax'], api_values['spcHumAvg'], api_values['spcHumMin'], api_values['wetBulbMax'], api_values['wetBulbAvg'], api_values['wetBulbMin']]
+    value_list = [api_values['_id'], api_values['timestamp'], api_values['tempMax'], api_values['tempAvg'], api_values['tempMin'], api_values['precip'], api_values['snowfall'], api_values['windSpdMax'], api_values['windSpdAvg'], api_values['windSpdMin'], api_values['cldCvrMax'], api_values['cldCvrAvg'], api_values['cldCvrMin'], api_values['dewPtMax'], api_values['dewPtAvg'], api_values['dewPtMin'], api_values['feelsLikeMax'], api_values['feelsLikeAvg'], api_values['feelsLikeMin'], api_values['relHumMax'], api_values['relHumAvg'], api_values['relHumMin'], api_values['sfcPresMax'], api_values['sfcPresAvg'], api_values['sfcPresMin'], api_values['spcHumMax'], api_values['spcHumAvg'], api_values['spcHumMin'], api_values['wetBulbMax'], api_values['wetBulbAvg'], api_values['wetBulbMin'], api_values['zip']]
 
     c = sqlite3.connect(db)
     c.execute(statement, value_list)
@@ -135,6 +181,11 @@ def write_log_success(next_values, log = 'weatherDataLog.txt'):
     with open(log, 'ab') as f:
         f.write(statement)
 
+def write_log_failure(next_values, log = 'weatherDataLog.txt'):
+    statement = "FAILURE: %s, %s\n" %(next_values['zip'], next_values['date'])
+    with open(log, 'ab') as f:
+        f.write(statement)
+
 def main():
     requestsLeft = open_requestsLeft()
     if requestsLeft == 0:
@@ -142,6 +193,12 @@ def main():
 
     #Else, increment file donw by one and continue
     minus_one_requestsLeft(requestsLeft)
+
+    #See if there are records left in tracker
+    tracker_records = check_tracker()
+    if tracker_records == 0:
+        notify("The Tracker Is Now Empty. Waiting 8 Hours.")
+        time.sleep(60*60*8)
 
     #Grab the next tracker record
     next_values = grab_next_tracker_record()
@@ -153,13 +210,17 @@ def main():
     #Run the path to get a list of values
     api_values = contact_api(api_dict)
 
+    if api_values['status'] != 200:
+        write_log_failure(next_values)
+        notify("The connection to the API Failed. Please Check Log")
+        time.sleep(60*60*8)
+
     #Update weatherData
     update_weatherData(api_values)
 
     #Update tracker
     update_tracker(api_values)
 
-    #Success
     write_log_success(next_values)
     print "Success!"
 
@@ -261,6 +322,7 @@ CREATE TABLE weatherData
 ,wetBulbMax real
 ,wetBulbAvg real
 ,wetBulbMin real
+,zip string
 )
     """
     try:
@@ -303,11 +365,9 @@ CREATE TABLE weatherData
     record = [row for row in conn.execute(statement)][0]['_id']
     conn.close()
     assert record == 1
-
-
-
-
     os.remove('testdb.db')
+    #Test email
+    #notify("Hell Yeah!")
 
 
     print 'KEY:'
