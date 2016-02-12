@@ -130,6 +130,11 @@ def update_tracker(api_values, db = 'weather.db', table ='tracker'):
     c.close()
     return 1
 
+def write_log_success(next_values, log = 'weatherDataLog.txt'):
+    statement = "Value Added: %s, %s\n" %(next_values['zip'], next_values['date'])
+    with open(log, 'ab') as f:
+        f.write(statement)
+
 def main():
     requestsLeft = open_requestsLeft()
     if requestsLeft == 0:
@@ -149,8 +154,14 @@ def main():
     api_values = contact_api(api_dict)
 
     #Update weatherData
-    #Update tracker
+    update_weatherData(api_values)
 
+    #Update tracker
+    update_tracker(api_values)
+
+    #Success
+    write_log_success(next_values)
+    print "Success!"
 
 
 ###For testing purposes
@@ -304,5 +315,4 @@ CREATE TABLE weatherData
     print 'Tests Passed'
 
 #test()
-if __name__ == "__main__":
-    main()
+main()
